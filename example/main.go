@@ -42,9 +42,9 @@ func aa() {
 		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
 	)
 	if _, err := client.ApiLogin(request.ApiLogin{
-		Email:        "amoz879@163.com",
-		Password:     "z1234567",
-		ReferralCode: 78277140,
+		Email:        "123456@163.com",
+		Password:     "123456",
+		ReferralCode: 123456,
 		Captcha:      "",
 	}); err != nil {
 		log.Errorln("aa", err)
