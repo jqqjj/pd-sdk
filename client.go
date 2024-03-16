@@ -24,12 +24,19 @@ type Client struct {
 	ctx       context.Context
 	baseUrl   string
 	userAgent string
-	userId    int
-	socialId  string
-	closed    bool
-	client    *http.Client
-	conn      *websocket.Conn
-	connMux   sync.Mutex
+
+	userId       int
+	username     string
+	password     string
+	refreshToken string
+
+	socialId string
+	closed   bool
+
+	client *http.Client
+
+	conn    *websocket.Conn
+	connMux sync.Mutex
 
 	subMux sync.Mutex
 	subs   map[string][]struct {
@@ -131,6 +138,8 @@ func (c *Client) startWS() error {
 	//循环消息处理
 	go c.loopMessage()
 
+	go c.loopPing() //定时发送ping
+
 	//处理退出
 	go func() {
 		<-c.ctx.Done()
@@ -154,14 +163,15 @@ func (c *Client) loopMessage() {
 			} `json:"result"`
 		}
 		if _, data, err = c.conn.ReadMessage(); err != nil {
+			c.publish(EventWSDisconnected, nil) //断开时触发事件
 			if c.closed {
 				return
 			}
 			//非关闭的客户端发生错误时重连
-			log.Errorf("ws read error: %v, try to reconnect\n", err)
+			log.Errorf("[%d-%s]ws read error: %v, try to reconnect\n", c.userId, c.username, err)
 			for {
 				if conn, err = c.openConn(); err != nil {
-					log.Errorf("reconnect err:%v\n", err)
+					log.Errorf("[%d-%s]reconnect err:%v\n", c.userId, c.username, err)
 					select {
 					case <-c.ctx.Done():
 						return
@@ -175,16 +185,18 @@ func (c *Client) loopMessage() {
 					defer c.connMux.Unlock()
 
 					if c.closed {
+						conn.Close()
 						return false
 					}
 					c.conn.Close()
 					c.conn = conn
 					return true
 				}(); !success {
-					log.Errorf("reconnect fail cause of closed\n")
+					log.Errorf("[%d-%s]reconnect fail cause of closed\n", c.userId, c.username)
 					return
 				}
-				log.Infoln("reconnected")
+				c.publish(EventWSReconnected, nil) //重新连上时触发事件
+				log.Infof("[%d-%s]reconnected\n", c.userId, c.username)
 				break
 			}
 			continue
@@ -192,11 +204,11 @@ func (c *Client) loopMessage() {
 
 		//广播订阅消息
 		if strArr, err = c.parseResp(data); err != nil {
-			log.Errorf("parse ws resp err:%v\n", err)
+			log.Errorf("[%d-%s]parse ws resp err:%v, data:%s\n", c.userId, c.username, err, string(data))
 		}
 		for _, v := range strArr {
 			if err = json.Unmarshal([]byte(v), &resp); err != nil {
-				log.Errorf("parse ws data error:%v, data:%s\n", err, v)
+				log.Errorf("[%d-%s]parse ws data error:%v, data:%s\n", c.userId, c.username, err, v)
 				continue
 			}
 			c.publish(resp.Result.Type, resp.Result.Data)
@@ -286,6 +298,34 @@ func (c *Client) openConn() (*websocket.Conn, error) {
 	}
 
 	return conn, nil
+}
+
+func (c *Client) loopPing() {
+	var (
+		err      error
+		duration = time.Minute * 1
+		ticker   = time.NewTicker(duration)
+	)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-ticker.C:
+		}
+
+		func() {
+			c.connMux.Lock()
+			defer c.connMux.Unlock()
+
+			c.conn.SetWriteDeadline(time.Now().Add(time.Second * 10))
+			if err = c.conn.WriteMessage(websocket.TextMessage, []byte(`["{\"method\":\"ping\"}"]`)); err != nil {
+				log.Errorf("[%d-%s]send ping error: %v\n", c.userId, c.username, err)
+			}
+			c.conn.SetWriteDeadline(time.Time{})
+		}()
+	}
 }
 
 func (c *Client) parseResp(data []byte) ([]string, error) {

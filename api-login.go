@@ -50,5 +50,11 @@ func (c *Client) ApiLogin(req request.ApiLogin) (*response.ApiLogin, error) {
 		return nil, err
 	}
 
+	//保存一些必要信息
+	c.userId = resp.Data.IdUser
+	c.refreshToken = resp.Data.RefreshToken
+	c.username = req.Email
+	c.password = req.Password
+
 	return &resp, nil
 }

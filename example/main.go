@@ -15,15 +15,16 @@ import (
 )
 
 func main() {
+
+	//return
 	go func() {
 		for {
-			aa()
-			t()
+			log.Errorln("协程数：", runtime.NumGoroutine())
 			time.Sleep(time.Second * 5)
-			fmt.Println("协程数：", runtime.NumGoroutine())
 		}
 	}()
-	//return
+
+	t()
 
 	sig := make(chan os.Signal)
 	signal.Notify(sig, syscall.SIGHUP)
@@ -42,7 +43,7 @@ func aa() {
 		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
 	)
 	if _, err := client.ApiLogin(request.ApiLogin{
-		Email:        "123456@163.com",
+		Email:        "123456@qq.com",
 		Password:     "123456",
 		ReferralCode: 123456,
 		Captcha:      "",
@@ -73,7 +74,7 @@ func t() {
 		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
 	)
 	_, err := client.ApiLogin(request.ApiLogin{
-		Email:        "a123456@163.com",
+		Email:        "123456@qq.com",
 		Password:     "123456",
 		ReferralCode: 123456,
 		Captcha:      "",
@@ -95,19 +96,18 @@ func t() {
 	ch := make(chan []byte)
 	client.Subscribe(ctx, "streaming_StreamStarted", ch)
 	client.Subscribe(ctx, "video-call_SessionStarted", ch)
+	client.Subscribe(ctx, sdk.EventDialogCreated, ch)
+	client.Subscribe(ctx, sdk.EventMessageRead, ch)
+	client.Subscribe(ctx, sdk.EventMessageSent, ch)
+	client.Subscribe(ctx, sdk.EventDialogLimitChanged, ch)
+	//client.Subscribe(ctx, "pong", ch)
 
-	go func() {
-		time.Sleep(time.Second * 5)
-		cancel()
-		fmt.Println("已结束订阅")
-	}()
-
-	go func() {
+	for {
 		select {
 		case <-ctx.Done():
 			return
 		case v := <-ch:
 			fmt.Printf("收到消息:%s\n", string(v))
 		}
-	}()
+	}
 }
