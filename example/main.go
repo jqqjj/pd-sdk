@@ -15,11 +15,16 @@ import (
 )
 
 func main() {
-
-	//return
 	go func() {
 		for {
 			log.Errorln("协程数：", runtime.NumGoroutine())
+			time.Sleep(time.Second * 5)
+		}
+	}()
+
+	go func() {
+		for {
+			t2()
 			time.Sleep(time.Second * 5)
 		}
 	}()
@@ -110,4 +115,27 @@ func t() {
 			fmt.Printf("收到消息:%s\n", string(v))
 		}
 	}
+}
+
+func t2() {
+	ctx, _ := context.WithCancel(context.Background())
+	client := sdk.NewClient(
+		ctx,
+		"https://talkytimes.com/platform/",
+		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+	)
+	if _, err := client.ApiLogin(request.ApiLogin{
+		Email:        "123456@qq.com",
+		Password:     "123456",
+		ReferralCode: 123456,
+		Captcha:      "",
+	}); err != nil {
+		log.Errorln("aa", err)
+		return
+	}
+
+	go func() {
+		time.Sleep(time.Second * 5)
+		client.Close()
+	}()
 }

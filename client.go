@@ -22,6 +22,7 @@ import (
 
 type Client struct {
 	ctx       context.Context
+	cancel    context.CancelFunc
 	baseUrl   string
 	userAgent string
 
@@ -48,8 +49,10 @@ type Client struct {
 func NewClient(ctx context.Context, baseUrl string, userAgent string) *Client {
 	rand.Seed(time.Now().UnixMicro())
 	jar, _ := cookiejar.New(nil)
+	childCtx, childCancel := context.WithCancel(ctx)
 	c := &Client{
-		ctx:       ctx,
+		ctx:       childCtx,
+		cancel:    childCancel,
 		baseUrl:   baseUrl,
 		userAgent: userAgent,
 		client:    &http.Client{Jar: jar, Timeout: time.Second * 30},
@@ -427,6 +430,7 @@ func (c *Client) Close() {
 	c.connMux.Lock()
 	defer c.connMux.Unlock()
 
+	c.cancel()
 	c.closed = true
 	if c.conn != nil {
 		c.conn.Close()
